@@ -1,24 +1,28 @@
 FROM pytorch/pytorch:1.5-cuda10.1-cudnn7-runtime
 
-COPY classla-stanfordnlp /usr/src/stanfordnlp
-WORKDIR /usr/src/stanfordnlp
+FROM pytorch/pytorch:1.5-cuda10.1-cudnn7-runtime
+RUN apt-get update && apt-get install -y tzdata
+ENV TZ=Europe/Ljubljana
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+RUN dpkg-reconfigure --frontend noninteractive tzdata
 
-RUN pip install --no-cache-dir protobuf requests tqdm && \
-    pip install --no-deps . && \
-    apt-get update && apt-get install -y --no-install-recommends openjdk-11-jre openjdk-11-jdk
+RUN pip install --no-cache-dir classla && \
+    python -c "import classla; classla.download('sl', force=True)"
 
-COPY Obeliks4J /usr/src/Obelisk4J
-WORKDIR /usr/src/Obelisk4J
+RUN  mkdir /pipeline
+WORKDIR /pipeline
+COPY setup.py /pipeline/
+COPY marcell_sl_pipeline /pipeline/marcell_sl_pipeline
 
-RUN javac -encoding UTF-8 src/main/java/org/obeliks/*.java -d target/classes && \
-    cp src/main/resources/* target/classes/org/obeliks/ && \
-    jar -cef org.obeliks.Tokenizer obeliks.jar -C target/classes org
+RUN pip install --no-cache-dir .
+
+WORKDIR /
+RUN rm -rf /pipeline/
 
 RUN pip install --no-cache-dir flask gunicorn && \
-    mkdir /pipeline
-COPY models /pipeline/models
-WORKDIR /pipeline
-COPY pipeline_api.py wsgi.py /pipeline/
+    mkdir /api
+WORKDIR /api
+COPY api.py /api/
 
 # TODO: Fix preloading. For now every worker loads its seperate models in memory.
-CMD ["gunicorn", "--bind", "0.0.0.0:80", "-w", "1", "--timeout", "1800", "--access-logfile", "-",  "wsgi:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:80", "-w", "1", "--timeout", "1800", "--access-logfile", "-",  "api:app"]

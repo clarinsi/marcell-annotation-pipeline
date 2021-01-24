@@ -1,7 +1,7 @@
 version: "2.3"
 services:
   webapp:
-    image: obeliks4j-classla-stanfordnlp:latest
+    image: marcell-sl-pipeline:0.2.0
     #runtime: nvidia
     ports:
         - 127.0.0.1:5000:80
