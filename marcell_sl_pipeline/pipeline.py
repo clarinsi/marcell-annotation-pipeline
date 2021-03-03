@@ -5,6 +5,7 @@ from classla import Document
 from classla.models.common.conll import CoNLLFile
 
 from . euannotation import EUTermAnnotator
+from . classification import DocClassifier
 
 
 class MarcellPipeline:
@@ -15,13 +16,14 @@ class MarcellPipeline:
                 tokenize_pretokenized=True, use_gpu=True)
 
         self.eu_term_annotator = EUTermAnnotator()
+        self.doc_classifier = DocClassifier()
 
         self.meta_fields = ['language', 'date', 'title', 'type', 'entype']
 
     def create_conllup_metadata(self, standoff_metadata):
         res = []
 
-        res.append('# global.columns = ID FORM LEMMA UPOS XPOS FEATS HEAD DEPREL DEPS MISC MARCELL:NE MARCELL:NP MARCELL:IATE MARCELL:EUROVOC')
+        res.append('# global.columns = ID FORM LEMMA UPOS XPOS FEATS HEAD DEPREL DEPS MISC MARCELL:NE MARCELL:NP MARCELL:IATE MARCELL:EUROVOC MARCELL:EUROVOCMT')
         res.append('# newdoc id = {}'.format(standoff_metadata['doc_id']))
 
         for key in self.meta_fields:
@@ -33,7 +35,6 @@ class MarcellPipeline:
 
             res.append('# {} = {}'.format(key, val))
 
-        res.append('\n')
         return res
 
     def run_classla(self, text, standoff_metadata):
@@ -47,9 +48,7 @@ class MarcellPipeline:
         # Start Classla processing.
         res = self.classla_pipeline(doc)
 
-        # Append CoNLL-U Plus metadata.
-        rows = self.create_conllup_metadata(standoff_metadata)
-
+        rows = []
         for line in res.conll_file.conll_as_string().splitlines():
             if not line.startswith('#') and len(line) > 0 and not line.isspace():
                 # Because stanfordnlp returns in the basic CONLLU format, we need to move
@@ -78,20 +77,32 @@ class MarcellPipeline:
             else:
                 rows.append(line)
 
-        return '\n'.join(rows)
+        return rows
 
     def process(self, text, standoff_metadata):
+        metadata_rows = self.create_conllup_metadata(standoff_metadata)
+
         # Obeliks
-        res = obeliks.run(text=text, conllu=True, pass_newdoc_id=True)
+        obeliks_res = obeliks.run(text=text, conllu=True, pass_newdoc_id=True)
 
         # Classla
-        res = self.run_classla(res, standoff_metadata)
+        rows = self.run_classla(obeliks_res, standoff_metadata)
 
         # IATE
-        res = self.eu_term_annotator.process_iate(res)
+        rows = self.eu_term_annotator.process_iate(rows)
 
         # EUROVOC
-        res = self.eu_term_annotator.process_eurovoc(res)
+        rows = self.eu_term_annotator.process_eurovoc(rows)
 
-        return res
+        # EUROVOC-MT
+        rows = self.eu_term_annotator.process_eurovocmt(rows)
+
+        # Classify whole document based on IATE and EUROVOC annotations
+        doc_type = self.doc_classifier.classify(rows)
+        if doc_type:
+            metadata_rows.append('# {} = {}'.format('category', doc_type))
+
+        metadata_rows.append('\n')
+        res = metadata_rows + rows 
+        return '\n'.join(res)
 

@@ -22,21 +22,11 @@ class EUTermAnnotator:
         res_path = Path(__file__).parent / 'res/'
         self.terms_iate = json.load(open(res_path / 'iate.json'))
         self.terms_eurovoc = json.load(open(res_path / 'eurovoc.json'))
+        self.terms_eurovocmt = json.load(open(res_path / 'eurovoc-mt.json'))
 
-    def __get_sents(self, conllup_text):
-        def line_gen(s):
-            buff = []
-            for c in s:
-                if c == '\n':
-                    yield ''.join(buff)
-                    buff = []
-                else:
-                    buff.append(c)
-            if len(buff) > 0:
-                return ''.join(buff)
-
+    def __get_sents(self, conllup_rows):
         sent = []
-        for line in line_gen(conllup_text):
+        for line in conllup_rows:
             line = line.strip()
             if line.startswith('#'):
                 tokens = ['#', line[1:].strip()]
@@ -85,10 +75,11 @@ class EUTermAnnotator:
             rc = True
         return rc
 
-    def __process(self, conllup_text, terms, col_idx):
-        out = []
+    def __process(self, conllup_rows, terms, col_idx):
+        res_rows = []
+        out_line_buff = []
         prev_sent_id = ''
-        for sent in self.__get_sents(conllup_text):
+        for sent in self.__get_sents(conllup_rows):
             sent_id = ''
             lemma_sent = ''
             for tokens in sent:
@@ -230,16 +221,20 @@ class EUTermAnnotator:
 
             for tokens in sent:
                 if tokens[0] == '#':
-                    out.append(tokens[0] + tokens[1])
+                    out_line_buff.append(tokens[0] + tokens[1])
                 else:
-                    out.append('\t'.join(tokens))
-                out.append('\n')
-            out.append('\n')
+                    out_line_buff.append('\t'.join(tokens))
+                res_rows.append('\n'.join(out_line_buff))
+                out_line_buff = []
+            res_rows.append('\n')
 
-        return ''.join(out)
+        return res_rows
 
-    def process_iate(self, conllup_text, col_idx=13):
-        return self.__process(conllup_text, col_idx=col_idx, terms=self.terms_iate)
+    def process_iate(self, conllup_rows, col_idx=13):
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_iate)
 
-    def process_eurovoc(self, conllup_text, col_idx=14):
-        return self.__process(conllup_text, col_idx=col_idx, terms=self.terms_eurovoc)
+    def process_eurovoc(self, conllup_rows, col_idx=14):
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovoc)
+
+    def process_eurovocmt(self, conllup_rows, col_idx=15):
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovocmt)
