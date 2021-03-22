@@ -22,9 +22,9 @@ $ docker-compose up -d
 or manually:
 
 ```console
-$ docker run --name obeliks4j-classla-stanfordnlp -d \
+$ docker run --name marcell-sl-pipeline -d \
     -p 127.0.0.1:5000:80 \
-    obeliks4j-classla-stanfordnlp:latest
+    marcell-sl-pipeline:latest
 ```
 
 ### GPU support

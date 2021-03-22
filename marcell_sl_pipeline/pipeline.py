@@ -1,8 +1,4 @@
-import obeliks
-
 import classla
-from classla import Document
-from classla.models.common.conll import CoNLLFile
 
 from . euannotation import EUTermAnnotator
 from . classification import DocClassifier
@@ -12,8 +8,7 @@ class MarcellPipeline:
 
     def __init__(self):
         # Set up stanfordnlp pipeline
-        self.classla_pipeline = classla.Pipeline('sl', processors='tokenize,ner,pos,lemma,depparse', 
-                tokenize_pretokenized=True, use_gpu=True)
+        self.classla_pipeline = classla.Pipeline('sl', use_gpu=True)
 
         self.eu_term_annotator = EUTermAnnotator()
         self.doc_classifier = DocClassifier()
@@ -38,18 +33,11 @@ class MarcellPipeline:
         return res
 
     def run_classla(self, text, standoff_metadata):
-        # Because we already have CoNLL-U formated input, we need to skip the tokenization step.
-        # This currently done by setting the Documents text parameter as None. After that we also
-        # have to manually create a CoNLLFile instance and append it to the Document.
-        doc = Document(text=None)
-        conll_file = CoNLLFile(input_str=text)
-        doc.conll_file = conll_file
-
         # Start Classla processing.
-        res = self.classla_pipeline(doc)
+        res = self.classla_pipeline(text)
 
         rows = []
-        for line in res.conll_file.conll_as_string().splitlines():
+        for line in res.to_conll().splitlines():
             if not line.startswith('#') and len(line) > 0 and not line.isspace():
                 # Because stanfordnlp returns in the basic CONLLU format, we need to move
                 # the NER values from the MISC column to a separate one.
@@ -82,11 +70,8 @@ class MarcellPipeline:
     def process(self, text, standoff_metadata):
         metadata_rows = self.create_conllup_metadata(standoff_metadata)
 
-        # Obeliks
-        obeliks_res = obeliks.run(text=text, conllu=True, pass_newdoc_id=True)
-
         # Classla
-        rows = self.run_classla(obeliks_res, standoff_metadata)
+        rows = self.run_classla(text, standoff_metadata)
 
         # IATE
         rows = self.eu_term_annotator.process_iate(rows)

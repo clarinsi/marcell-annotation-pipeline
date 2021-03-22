@@ -21,8 +21,22 @@ class EUTermAnnotator:
 
         res_path = Path(__file__).parent / 'res/'
         self.terms_iate = json.load(open(res_path / 'iate.json'))
+        self.terms_iate_lemma_map = self.__create_lemma_map(self.terms_iate)
         self.terms_eurovoc = json.load(open(res_path / 'eurovoc.json'))
+        self.terms_eurovoc_lemma_map = self.__create_lemma_map(self.terms_eurovoc)
         self.terms_eurovocmt = json.load(open(res_path / 'eurovoc-mt.json'))
+        self.terms_eurovocmt_lemma_map = self.__create_lemma_map(self.terms_eurovocmt)
+
+    def __create_lemma_map(self, terms):
+        res = dict()
+        for i, item in enumerate(terms):
+            lemma = item['lemma']
+            for word in lemma.split():
+                if not word in res:
+                    res[word] = {i}
+                else:
+                    res[word].add(i)
+        return res
 
     def __get_sents(self, conllup_rows):
         sent = []
@@ -75,7 +89,7 @@ class EUTermAnnotator:
             rc = True
         return rc
 
-    def __process(self, conllup_rows, terms, col_idx):
+    def __process(self, conllup_rows, terms, terms_lemma_map, col_idx):
         res_rows = []
         out_line_buff = []
         prev_sent_id = ''
@@ -117,8 +131,17 @@ class EUTermAnnotator:
             iate_ids = []
 
             # Find only longest match (redmine issue #1616)
+            # Use lemma sent map to reduce term set to be searched.
+            idx_set = set()
+            for word in uni_lemma_sent.split():
+                if not word in terms_lemma_map:
+                    continue
+                word_indicies = terms_lemma_map[word]
+                idx_set = idx_set.intersection(word_indicies).union((word_indicies - idx_set))
+
             matches = dict()
-            for item in terms:
+            for idx in idx_set:
+                item = terms[idx]
                 lemma = item['lemma']
                 if self.__find_text(uni_lemma_sent, lemma):
                     # Remove past matches, that are substrings of this one.
@@ -231,10 +254,13 @@ class EUTermAnnotator:
         return res_rows
 
     def process_iate(self, conllup_rows, col_idx=13):
-        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_iate)
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_iate, 
+                terms_lemma_map=self.terms_iate_lemma_map)
 
     def process_eurovoc(self, conllup_rows, col_idx=14):
-        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovoc)
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovoc,
+                terms_lemma_map=self.terms_eurovoc_lemma_map)
 
     def process_eurovocmt(self, conllup_rows, col_idx=15):
-        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovocmt)
+        return self.__process(conllup_rows, col_idx=col_idx, terms=self.terms_eurovocmt,
+                terms_lemma_map=self.terms_eurovocmt_lemma_map)
