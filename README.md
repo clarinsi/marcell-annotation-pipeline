@@ -1,8 +1,5 @@
 # Deploying
 
-## How do I get the model files?
-Run `get-models.sh` or get them yourself from [clarin.si](https://www.clarin.si/repository/xmlui/).
-
 ## Docker
 
 ### Building
