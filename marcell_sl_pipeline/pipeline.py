@@ -1,3 +1,4 @@
+import torch
 import classla
 
 from . euannotation import EUTermAnnotator
@@ -6,9 +7,11 @@ from . classification import DocClassifier
 
 class MarcellPipeline:
 
-    def __init__(self):
+    def __init__(self, use_gpu=True):
+        self.use_gpu = use_gpu
+
         # Set up stanfordnlp pipeline
-        self.classla_pipeline = classla.Pipeline('sl', use_gpu=True)
+        self.classla_pipeline = classla.Pipeline('sl', pos_use_lexicon=True, use_gpu=use_gpu)
 
         self.eu_term_annotator = EUTermAnnotator()
         self.doc_classifier = DocClassifier()
@@ -34,7 +37,12 @@ class MarcellPipeline:
 
     def run_classla(self, text, standoff_metadata):
         # Start Classla processing.
-        res = self.classla_pipeline(text)
+        if self.use_gpu:
+            with torch.no_grad():
+                res = self.classla_pipeline(text)
+            torch.cuda.empty_cache()
+        else:
+            res = self.classla_pipeline(text)
 
         rows = []
         for line in res.to_conll().splitlines():
