@@ -93,7 +93,7 @@ class MarcellPipeline:
         # Classify whole document based on IATE and EUROVOC annotations
         doc_type = self.doc_classifier.classify(rows)
         if doc_type:
-            metadata_rows.append('# {} = {}'.format('category', doc_type))
+            metadata_rows.append('# {} = {}'.format('eurovoc', doc_type))
 
         metadata_rows.append('\n')
         res = metadata_rows + rows 
